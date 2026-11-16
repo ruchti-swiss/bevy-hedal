@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::asset::AssetMetaCheck;
+//use std::f32::consts::TAU;
 
 #[derive(Component)]
 struct Cube;
@@ -9,6 +10,15 @@ struct LastTouchPos(Option<Vec2>);
 
 #[derive(Resource)]
 struct RotationDirection(f32);
+
+#[derive(Component)]
+struct TechNode {
+    base_pos: Vec2,
+    phase: f32,
+    speed: f32,
+    radius: f32,
+}
+
 
 fn main() {
     App::new()
@@ -30,6 +40,10 @@ fn main() {
         .insert_resource(LastTouchPos(None))
         .add_systems(Startup, setup)
         .add_systems(Update,(auto_rotate, keyboard_control, touch_control))
+        // Dunkler, violett-getönter Tech-Hintergrund (#14111A)
+        .insert_resource(ClearColor(Color::srgb_u8(20, 17, 26)))
+        .add_systems(Startup, setup_background)
+        .add_systems(Update, (animate_nodes, draw_network))
         .run();
 }
 
@@ -59,6 +73,7 @@ fn setup(
         Transform::default(),
         Cube, // <-- DAS ist wichtig für die Rotation!
     ));
+
 }
 
 // automatische Rotation
@@ -140,4 +155,90 @@ fn touch_control(
         last_touch.0 = None;
     }
 
+}
+
+
+fn setup_background(
+    mut commands: Commands,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+) {
+    commands.spawn(Camera2d);
+
+    let Ok(window) = windows.single() else {
+        return;
+    };
+
+    let spacing_x = 140.0;
+    let spacing_y = 120.0;
+
+    let width = window.width();
+    let height = window.height();
+
+    let cols = (width / spacing_x).ceil() as usize + 4;
+    let rows = (height / spacing_y).ceil() as usize + 4;
+
+    let start_x = -width * 0.5;
+    let start_y = -height * 0.5;
+
+    for row in 0..rows {
+        for col in 0..cols {
+            let index = (row * cols + col) as f32;
+
+            let offset_x = if row % 2 == 0 {
+                0.0
+            } else {
+                spacing_x * 0.5
+            };
+
+            let x = start_x + col as f32 * spacing_x + offset_x;
+            let y = start_y + row as f32 * spacing_y;
+
+            commands.spawn((
+                TechNode {
+                    base_pos: Vec2::new(x, y),
+                    phase: index * 0.7,
+                    speed: 0.6 + (index % 5.0) * 0.15,
+                    radius: 25.0 + (index % 3.0) * 10.0,
+                },
+                Transform::from_xyz(x, y, -10.0),
+            ));
+        }
+    }
+}
+
+
+fn animate_nodes(time: Res<Time>, mut query: Query<(&TechNode, &mut Transform)>) {
+    let t = time.elapsed_secs();
+    for (node, mut transform) in &mut query {
+        let angle = t * node.speed + node.phase;
+        transform.translation.x = node.base_pos.x + angle.cos() * node.radius;
+        transform.translation.y = node.base_pos.y + (angle * 0.8).sin() * node.radius;
+    }
+}
+
+fn draw_network(mut gizmos: Gizmos, query: Query<&Transform, With<TechNode>>) {
+    let positions: Vec<Vec2> = query
+        .iter()
+        .map(|t| t.translation.truncate())
+        .collect();
+
+    let max_dist = 190.0;
+
+    for i in 0..positions.len() {
+        // Zeichnet kleine leuchtende Punkte im Logo-Violett (#9E4795)
+        gizmos.circle_2d(positions[i], 2.5, Color::srgba_u8(158, 71, 149, 180));
+
+        for j in (i + 1)..positions.len() {
+            let dist = positions[i].distance(positions[j]);
+            if dist < max_dist {
+                // Je näher die Punkte, desto sichtbarer die Verbindungslinie
+                let alpha = ((1.0 - dist / max_dist) * 110.0) as u8;
+                gizmos.line_2d(
+                    positions[i],
+                    positions[j],
+                    Color::srgba_u8(138, 59, 130, alpha),
+                );
+            }
+        }
+    }
 }
