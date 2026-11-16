@@ -129,6 +129,7 @@ fn keyboard_control(
 // Touch-Steuerung
 fn touch_control(
     touches: Res<Touches>,
+    mut direction: ResMut<RotationDirection>,
     mut last_touch: ResMut<LastTouchPos>,
     mut query: Query<&mut Transform, With<Cube>>,
 ) {
@@ -139,18 +140,17 @@ fn touch_control(
 
         if let Some(prev) = last_touch.0 {
             let delta = pos - prev;
-
+        
+            // Drehrichtung wie ArrowLeft / ArrowRight
+            if delta.x < 0.0 {
+                direction.0 = -1.0;
+            } else if delta.x > 0.0 {
+                direction.0 = 1.0;
+            }
+        
             for mut transform in &mut query {
-
-                // links/rechts ziehen
-                transform.rotate_y(
-                    -delta.x * sensitivity
-                );
-
-                // hoch/runter ziehen
-                transform.rotate_x(
-                    -delta.y * sensitivity
-                );
+                transform.rotate_y(-delta.x * sensitivity);
+                transform.rotate_x(-delta.y * sensitivity);
             }
         }
 
