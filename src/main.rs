@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 use bevy::asset::AssetMetaCheck;
-//use std::f32::consts::TAU;
 
 #[derive(Component)]
 struct Cube;
 
 #[derive(Resource, Default)]
 struct LastTouchPos(Option<Vec2>);
+
+#[derive(Resource, Default)]
+struct MouseWorldPos(Vec2);
 
 #[derive(Resource)]
 struct RotationDirection(f32);
@@ -44,6 +46,8 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb_u8(20, 17, 26)))
         .add_systems(Startup, setup_background)
         .add_systems(Update, (animate_nodes, draw_network))
+        .insert_resource(MouseWorldPos::default())
+        .add_systems(Update, update_mouse_position)
         .run();
 }
 
@@ -206,13 +210,48 @@ fn setup_background(
     }
 }
 
+fn update_mouse_position(
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    mut mouse_pos: ResMut<MouseWorldPos>,
+) {
+    let Ok(window) = windows.single() else { return; };
+    let Ok((camera, camera_transform)) = camera_q.single() else { return; };
 
-fn animate_nodes(time: Res<Time>, mut query: Query<(&TechNode, &mut Transform)>) {
+    if let Some(cursor_pos) = window.cursor_position() {
+        if let Ok(world_pos) =
+            camera.viewport_to_world_2d(camera_transform, cursor_pos)
+        {
+            mouse_pos.0 = world_pos;
+        }
+    }
+}
+
+fn animate_nodes(
+    time: Res<Time>,
+    mouse: Res<MouseWorldPos>,
+    mut query: Query<(&TechNode, &mut Transform)>,
+) {
     let t = time.elapsed_secs();
+
     for (node, mut transform) in &mut query {
         let angle = t * node.speed + node.phase;
-        transform.translation.x = node.base_pos.x + angle.cos() * node.radius;
-        transform.translation.y = node.base_pos.y + (angle * 0.8).sin() * node.radius;
+
+        let mut pos = Vec2::new(
+            node.base_pos.x + angle.cos() * node.radius,
+            node.base_pos.y + (angle * 0.8).sin() * node.radius,
+        );
+
+        let dir = mouse.0 - pos;
+        let dist = dir.length();
+
+        if dist < 250.0 {
+            let strength = (250.0 - dist) / 250.0;
+            pos += dir.normalize_or_zero() * strength * 50.0;
+        }
+
+        transform.translation.x = pos.x;
+        transform.translation.y = pos.y;
     }
 }
 
