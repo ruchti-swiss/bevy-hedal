@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::asset::AssetMetaCheck;
 
 #[derive(Component)]
 struct Cube;
@@ -11,46 +12,52 @@ struct RotationDirection(f32);
 
 fn main() {
     App::new()
-        .insert_resource(LastTouchPos::default())
+        .add_plugins(DefaultPlugins
+            .set(AssetPlugin {
+                meta_check: AssetMetaCheck::Never,
+                ..default()
+            })
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    fit_canvas_to_parent: true,
+                    prevent_default_event_handling: false,
+                    ..default()
+                }),
+                ..default()
+            })
+        )        
         .insert_resource(RotationDirection(1.0))
-        .add_plugins(DefaultPlugins)
+        .insert_resource(LastTouchPos(None))
         .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                auto_rotate,
-                keyboard_control,
-                touch_control,
-            ),
-        )
+        .add_systems(Update,(auto_rotate, keyboard_control, touch_control))
         .run();
 }
 
 fn setup(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 2.0, 6.0)
-            .looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(0.0, 0.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    commands.spawn((
-        PointLight {
-            intensity: 1_000_000.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_xyz(4.0, 8.0, 4.0),
-    ));
+    let mat = materials.add(StandardMaterial {
+        base_color_texture: Some(asset_server.load("Hedalicon_white.png")), // <-- dein echter Name
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        double_sided: true, // <-- sonst von hinten unsichtbar
+        cull_mode: None,    // <-- sonst wird Rückseite weggeschnitten
+        ..default()
+    });
 
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.2, 0.7, 1.0))),
+        Mesh3d(meshes.add(Rectangle::new(2.0, 2.0))),
+        MeshMaterial3d(mat),
         Transform::default(),
-        Cube,
+        Cube, // <-- DAS ist wichtig für die Rotation!
     ));
 }
 

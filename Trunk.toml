@@ -1,0 +1,6 @@
+[build]
+target = "index.html"
+dist = "dist"
+wasm_opt = false
+
+# asm_opt = ["-Oz", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]

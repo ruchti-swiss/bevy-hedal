@@ -1183,6 +1183,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_rpehd"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_scene"
 version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1321,13 +1328,6 @@ dependencies = [
  "futures-lite",
  "heapless",
  "pin-project",
-]
-
-[[package]]
-name = "bevy_test"
-version = "0.1.0"
-dependencies = [
- "bevy",
 ]
 
 [[package]]
