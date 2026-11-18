@@ -29,6 +29,14 @@ struct HintArrow {
     delay: f32,
 }
 
+#[derive(Component)]
+enum ArrowButton {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
 #[derive(Resource, Default)]
 struct TutorialDone(pub bool);
 
@@ -67,6 +75,7 @@ fn main() {
                 auto_rotate,
                 keyboard_control,
                 touch_control,
+                arrow_button_system, 
                 animate_nodes,
                 draw_network,
                 update_mouse_position,
@@ -143,41 +152,48 @@ fn setup_hint(mut commands: Commands, asset_server: Res<AssetServer>) {
                             column_gap: Val::Px(16.),
                             ..default()
                         })
-                 .with_children(|p| {
-                            for (i, arrow) in ["←", "↑", "↓", "→"].iter().enumerate() { 
-                                // Chip = Parent, hat Node + HintArrow -> der hüpft
+                     .with_children(|p| {
+                            for (i, (arrow, button)) in [
+                            ("←", ArrowButton::Left),
+                            ("↑", ArrowButton::Up),
+                            ("↓", ArrowButton::Down),
+                            ("→", ArrowButton::Right),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            p.spawn((
+                                Button,
+                                button,
+                                Node {
+                                    width: Val::Px(44.),
+                                    height: Val::Px(44.),
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    border: UiRect::all(Val::Px(2.)),
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgba(1., 1., 1., 0.12)),
+                                BorderColor::all(Color::srgba(1., 1., 1., 0.4)),
+                                BorderRadius::all(Val::Px(8.)),
+                                HintArrow {
+                                    delay: i as f32 * 0.15,
+                                },
+                            ))
+                            .with_children(|p| {
                                 p.spawn((
-                                    Node {
-                                        width: Val::Px(44.),
-                                        height: Val::Px(44.),
-                                        justify_content: JustifyContent::Center,
-                                        align_items: AlignItems::Center,
-                                        border: UiRect::all(Val::Px(2.)),
+                                    Text::new(arrow),
+                                    TextFont {
+                                        font: font.clone(),
+                                        font_size: 26.,
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgba(1., 1., 1., 0.12)),
-                                    BorderColor::all(Color::srgba(1., 1., 1., 0.4)),
-                                    BorderRadius::all(Val::Px(8.)),
-                                    HintArrow {
-                                        delay: i as f32 * 0.15,
-                                    },
-                                ))
-                                .with_children(|p| {
-                                    // Text = Child, nur Text, kein Node, kein HintArrow
-                                    p.spawn((
-                                        Text::new(*arrow),
-                                        TextFont {
-                                            font: font.clone(),
-                                            font_size: 26.,
-                                            ..default()
-                                        },
-                                        TextColor(Color::WHITE),
-                                    ));
-                                });
-                            }
-                        });
-
-                    // Zeile 2: Text
+                                    TextColor(Color::WHITE),
+                                ));
+                            });
+                        }
+                    });
+                         // Zeile 2: Text
                     #[cfg(target_os = "ios")]
                     let text = "Wischen zum Navigieren";
                     #[cfg(not(target_os = "ios"))]
@@ -194,6 +210,40 @@ fn setup_hint(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ));
                 });
         });
+}
+
+fn arrow_button_system(
+    interaction_query: Query<
+        (&Interaction, &ArrowButton),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut direction: ResMut<RotationDirection>,
+    mut cube_query: Query<&mut Transform, With<Cube>>,
+) {
+    for (interaction, button) in &interaction_query {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+
+        match button {
+            ArrowButton::Left => {
+                direction.0 = -1.0;
+            }
+            ArrowButton::Right => {
+                direction.0 = 1.0;
+            }
+            ArrowButton::Up => {
+                for mut transform in &mut cube_query {
+                    transform.rotate_x(0.3);
+                }
+            }
+            ArrowButton::Down => {
+                for mut transform in &mut cube_query {
+                    transform.rotate_x(-0.3);
+                }
+            }
+        }
+    }
 }
 
 // Pfeile hüpfen lassen
@@ -224,7 +274,13 @@ fn input_system(
         || keys.just_pressed(KeyCode::ArrowUp)
         || keys.just_pressed(KeyCode::ArrowDown)
     {
-        used = true;
+        done.0 = true;
+
+        for e in &hint {
+            commands.entity(e).despawn();
+        }
+
+        return;
     }
 
     for touch in touches.iter_just_pressed() {
@@ -242,6 +298,7 @@ fn input_system(
 
     if used {
         done.0 = true;
+    
         for e in &hint {
             commands.entity(e).despawn();
         }
